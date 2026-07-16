@@ -1,0 +1,64 @@
+{
+  "name": "@cboxdk/id-react",
+  "version": "0.1.0",
+  "description": "Embeddable React widgets for Cbox ID — a drop-in user button, sign-in / sign-out buttons, profile card and organization badge, wired to your Cbox ID hosted flows. Themeable, accessible, zero-config.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Sylvester Damgaard <sn@cbox.dk>",
+  "homepage": "https://github.com/cboxdk/id-react",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cboxdk/id-react.git"
+  },
+  "bugs": {
+    "url": "https://github.com/cboxdk/id-react/issues"
+  },
+  "keywords": [
+    "cbox-id",
+    "react",
+    "authentication",
+    "widgets",
+    "user-button",
+    "oidc",
+    "nextjs"
+  ],
+  "sideEffects": false,
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup && node scripts/add-use-client.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "npm run typecheck && npm run test && npm run build"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.0",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.5.0",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "happy-dom": "^20.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.2",
+    "vitest": "^4.1.0"
+  }
+}
