@@ -6,6 +6,10 @@ import { SignInButton } from './SignInButton.js';
 export interface UserButtonProps {
   /** Label for the profile-management item. */
   manageLabel?: string;
+  /** Label for the switch-account item (shown when `urls.switchAccount` is set). */
+  switchLabel?: string;
+  /** Label for the add-account item (shown when `urls.addAccount` is set). */
+  addLabel?: string;
   /** Label for the sign-out item. */
   signOutLabel?: string;
   className?: string;
@@ -19,6 +23,8 @@ export interface UserButtonProps {
  */
 export function UserButton({
   manageLabel = 'Manage account',
+  switchLabel = 'Switch account',
+  addLabel = 'Add another account',
   signOutLabel = 'Sign out',
   className,
 }: UserButtonProps) {
@@ -82,6 +88,19 @@ export function UserButton({
               <a className="cbox-id-menu__item" role="menuitem" href={urls.profile}>
                 {manageLabel}
               </a>
+            ) : null}
+            {urls.switchAccount ? (
+              <a className="cbox-id-menu__item" role="menuitem" href={urls.switchAccount}>
+                {switchLabel}
+              </a>
+            ) : null}
+            {urls.addAccount ? (
+              <a className="cbox-id-menu__item" role="menuitem" href={urls.addAccount}>
+                {addLabel}
+              </a>
+            ) : null}
+            {(urls.switchAccount || urls.addAccount) && urls.signOut ? (
+              <hr className="cbox-id-menu__sep" />
             ) : null}
             {urls.signOut ? (
               <a className="cbox-id-menu__item" role="menuitem" href={urls.signOut}>
