@@ -8,8 +8,26 @@ export interface CboxWidgetUser {
   id: string;
   email?: string | null;
   name?: string | null;
+  /** The active organization's id (the one the current session is scoped to). */
   organizationId?: string | null;
   /** Optional avatar image URL; falls back to initials when absent. */
+  imageUrl?: string | null;
+  /**
+   * The organizations this user belongs to — powers `<OrganizationSwitcher>`. Inject
+   * it from the server (the redirect flow doesn't expose it client-side); omit for a
+   * single-org app and the switcher renders nothing.
+   */
+  organizations?: CboxWidgetOrganization[];
+}
+
+/** One organization a user belongs to, as rendered by `<OrganizationSwitcher>`. */
+export interface CboxWidgetOrganization {
+  /** The stable organization id (matches `CboxWidgetUser.organizationId`). */
+  id: string;
+  name: string;
+  /** The member's role here, shown as a subtitle when present. */
+  role?: string | null;
+  /** Optional logo/avatar URL; falls back to initials when absent. */
   imageUrl?: string | null;
 }
 
@@ -34,6 +52,15 @@ export interface CboxWidgetUrls {
    * `prompt: 'login'`.
    */
   addAccount?: string;
+  /**
+   * Given an organization id, return a route in *your* app that starts a sign-in
+   * carrying that `organization_id` — e.g. a handler calling the client's
+   * `createAuthorizationRequest({ organizationId })`. Powers the switcher's items;
+   * when omitted, `<OrganizationSwitcher>` lists organizations read-only.
+   */
+  switchOrganization?: (organizationId: string) => string;
+  /** Optional route to create a new organization (shown as the switcher's footer). */
+  createOrganization?: string;
 }
 
 /** Theming hooks. Any omitted value keeps the built-in default. */

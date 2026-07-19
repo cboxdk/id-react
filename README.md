@@ -49,8 +49,33 @@ click or Escape.
 | `<SignInButton>` / `<SignOutButton>` | Standalone buttons linking to your flow routes. |
 | `<UserProfileCard>` | Avatar, name, email, and a manage-account link. |
 | `<OrganizationBadge>` | The user's current organization. |
+| `<OrganizationSwitcher>` | The active organization + a menu to switch between the user's orgs. |
 
 Hooks: `useCboxUser()` and `useCboxId()`.
+
+### Organization switcher
+
+Provide the user's organizations and a `switchOrganization` URL builder — switching is
+a redirect that starts a new sign-in carrying the chosen `organization_id`:
+
+```tsx
+<CboxIdProvider
+  user={{ ...user, organizations: [
+    { id: 'org_a', name: 'Acme', role: 'admin' },
+    { id: 'org_b', name: 'Globex', role: 'member' },
+  ] }}
+  urls={{
+    // A route in your app that calls cboxId.createAuthorizationRequest({ organizationId })
+    switchOrganization: (id) => `/auth/switch-org?org=${id}`,
+    createOrganization: '/organizations/new', // optional footer
+  }}
+>
+  <OrganizationSwitcher />
+</CboxIdProvider>
+```
+
+Inject `organizations` from the server (the redirect flow doesn't expose the list
+client-side). Omit it — or leave the user in one org — and the switcher renders nothing.
 
 ## Theming
 

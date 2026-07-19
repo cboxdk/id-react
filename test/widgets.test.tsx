@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CboxIdProvider,
   OrganizationBadge,
+  OrganizationSwitcher,
   SignInButton,
   UserButton,
   UserProfileCard,
@@ -104,5 +105,81 @@ describe('OrganizationBadge', () => {
       children: null,
     });
     expect(container).toBeEmptyDOMElement();
+  });
+});
+
+describe('OrganizationSwitcher', () => {
+  const multiOrg: CboxWidgetUser = {
+    id: 'user-1',
+    name: 'Ada Lovelace',
+    organizationId: 'org-acme',
+    organizations: [
+      { id: 'org-acme', name: 'Acme Inc', role: 'admin' },
+      { id: 'org-globex', name: 'Globex', role: 'member' },
+    ],
+  };
+
+  it('renders nothing when the user belongs to no organization', () => {
+    const { container } = wrap(<OrganizationSwitcher />, {
+      user: { id: 'u', name: 'Solo' },
+      urls,
+      children: null,
+    });
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('shows the active organization and opens a menu of all orgs, active marked', async () => {
+    const events = userEvent.setup();
+    wrap(<OrganizationSwitcher />, {
+      user: multiOrg,
+      urls: { ...urls, switchOrganization: (id) => `/switch-org?o=${id}` },
+      children: null,
+    });
+
+    const trigger = screen.getByRole('button', { name: /Current organization: Acme Inc/ });
+    expect(trigger).toHaveTextContent('Acme Inc');
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+
+    await events.click(trigger);
+    const menu = screen.getByRole('menu');
+    expect(menu).toBeInTheDocument();
+
+    // The non-active org is a switch link carrying its id…
+    const globex = screen.getByRole('menuitem', { name: /Globex/ });
+    expect(globex).toHaveAttribute('href', '/switch-org?o=org-globex');
+    // …the active org is present but not a link (aria-current).
+    const acme = screen.getByRole('menuitem', { name: /Acme Inc/ });
+    expect(acme).toHaveAttribute('aria-current', 'true');
+    expect(acme).not.toHaveAttribute('href');
+  });
+
+  it('lists organizations read-only when no switchOrganization url is given', async () => {
+    const events = userEvent.setup();
+    wrap(<OrganizationSwitcher />, { user: multiOrg, urls, children: null });
+
+    await events.click(screen.getByRole('button', { name: /Current organization/ }));
+    expect(screen.getByRole('menuitem', { name: /Globex/ })).not.toHaveAttribute('href');
+  });
+
+  it('shows a create-organization footer when its url is set', async () => {
+    const events = userEvent.setup();
+    wrap(<OrganizationSwitcher createLabel="New workspace" />, {
+      user: multiOrg,
+      urls: { ...urls, createOrganization: '/orgs/new' },
+      children: null,
+    });
+
+    await events.click(screen.getByRole('button', { name: /Current organization/ }));
+    expect(screen.getByRole('menuitem', { name: 'New workspace' })).toHaveAttribute('href', '/orgs/new');
+  });
+
+  it('closes on Escape', async () => {
+    const events = userEvent.setup();
+    wrap(<OrganizationSwitcher />, { user: multiOrg, urls, children: null });
+
+    await events.click(screen.getByRole('button', { name: /Current organization/ }));
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+    await events.keyboard('{Escape}');
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument();
   });
 });

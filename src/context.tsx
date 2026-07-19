@@ -68,15 +68,20 @@ export function appearanceStyle(appearance: CboxWidgetAppearance): CSSProperties
   return vars as CSSProperties;
 }
 
-/** Initials for the avatar fallback, from name or email. */
-export function initials(user: CboxWidgetUser): string {
-  const source = user.name?.trim() || user.email?.trim() || '';
-  if (source === '') {
+/** One- or two-letter initials for an avatar fallback, from any label. */
+export function initialsOf(source: string): string {
+  const s = source.trim();
+  if (s === '') {
     return '?';
   }
-  const parts = source.split(/\s+/).filter(Boolean);
+  const parts = s.split(/\s+/).filter(Boolean);
   if (parts.length >= 2) {
     return (parts[0]![0]! + parts[1]![0]!).toUpperCase();
   }
-  return source.slice(0, 2).toUpperCase();
+  return s.slice(0, 2).toUpperCase();
+}
+
+/** Initials for the avatar fallback, from name or email. */
+export function initials(user: CboxWidgetUser): string {
+  return initialsOf(user.name?.trim() || user.email?.trim() || '');
 }

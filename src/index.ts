@@ -9,4 +9,13 @@ export { SignOutButton, type SignOutButtonProps } from './components/SignOutButt
 export { UserButton, type UserButtonProps } from './components/UserButton.js';
 export { UserProfileCard, type UserProfileCardProps } from './components/UserProfileCard.js';
 export { OrganizationBadge, type OrganizationBadgeProps } from './components/OrganizationBadge.js';
-export type { CboxWidgetUser, CboxWidgetUrls, CboxWidgetAppearance } from './types.js';
+export {
+  OrganizationSwitcher,
+  type OrganizationSwitcherProps,
+} from './components/OrganizationSwitcher.js';
+export type {
+  CboxWidgetUser,
+  CboxWidgetOrganization,
+  CboxWidgetUrls,
+  CboxWidgetAppearance,
+} from './types.js';
