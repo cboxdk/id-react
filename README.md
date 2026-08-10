@@ -8,6 +8,38 @@ zero-config (the stylesheet is injected for you).
 Pairs with [`@cboxdk/id-js`](https://github.com/cboxdk/id-js), which runs the login
 on the server; these widgets render the signed-in user it produces.
 
+## Reading the environment's own theme (no backend)
+
+`<CboxIdProvider>` normally takes `user`, `urls` and `appearance` from your server. That is
+the right shape when you already render the page server-side: one fewer request, and no
+loading state.
+
+For a static site, or a widget dropped into somebody else's page, there is no server to
+ask. `useCboxConfig` reads the environment's public configuration directly, using a
+publishable key:
+
+```tsx
+import { CboxIdProvider, useCboxConfig } from '@cboxdk/id-react'
+
+function Providers({ children }) {
+  const { appearance, loading } = useCboxConfig({
+    issuer: 'https://id.acme.com',
+    publishableKey: 'pk_live_…', // public — safe in your bundle
+  })
+
+  return <CboxIdProvider appearance={appearance}>{children}</CboxIdProvider>
+}
+```
+
+The key only works from the origins you registered in the console, which is what makes it
+safe to publish.
+
+It is deliberately **not** wired into the provider automatically: a provider that makes a
+network request on mount turns a server-rendered page into one with a flash of unthemed
+widgets, and that trade belongs to you rather than to us. `appearance` is `{}` while
+loading and when the environment has set no theme, so widgets fall back to their own
+defaults rather than to nothing.
+
 ## Install
 
 > **Where do `issuer`, `clientId` and `redirectUri` come from?**

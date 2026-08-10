@@ -1,3 +1,10 @@
+export { useCboxConfig } from './frontend.js';
+export type {
+  UseCboxConfigOptions,
+  UseCboxConfigResult,
+  CboxFrontendConfig,
+  CboxSocialProvider,
+} from './frontend.js';
 export {
   CboxIdProvider,
   useCboxId,
