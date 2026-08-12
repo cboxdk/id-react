@@ -11,6 +11,7 @@ export {
   useCboxUser,
   type CboxIdProviderProps,
 } from './context.js';
+export { SignIn, type SignInProps, type AuthorizeParams, type SignInClient } from './components/SignIn.js';
 export { SignInButton, type SignInButtonProps } from './components/SignInButton.js';
 export { SignOutButton, type SignOutButtonProps } from './components/SignOutButton.js';
 export { UserButton, type UserButtonProps } from './components/UserButton.js';

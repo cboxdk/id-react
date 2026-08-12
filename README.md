@@ -8,6 +8,51 @@ zero-config (the stylesheet is injected for you).
 Pairs with [`@cboxdk/id-js`](https://github.com/cboxdk/id-js), which runs the login
 on the server; these widgets render the signed-in user it produces.
 
+## A sign-in form you drop in
+
+Everything else here is a redirect shell. `<SignIn/>` draws the form, in the customer's own
+colours, against the Frontend API:
+
+```tsx
+import { CboxIdFrontend } from '@cboxdk/id-js'
+import { SignIn } from '@cboxdk/id-react'
+
+const frontend = new CboxIdFrontend({
+  issuer: 'https://id.acme.com',
+  publishableKey: 'pk_live_…',
+})
+
+<SignIn
+  frontend={frontend}
+  authorize={{
+    clientId: 'your-client-id',
+    redirectUri: 'https://acme.com/callback',
+    codeChallenge,          // yours — see below
+  }}
+/>
+```
+
+It handles the password step, the second factor, and the social buttons the configuration
+lists. Its last act is a redirect to `/oauth/authorize` carrying a single-use login ticket
+and your PKCE challenge.
+
+**It never touches a token.** Handing tokens to a page that proved a password is the
+implicit grant, which OAuth 2.1 removes. Tokens are minted by the authorize flow exactly as
+they were; only how the person arrived is different.
+
+**PKCE is yours, deliberately.** Generating the verifier inside the component would mean it
+has to store the verifier across a redirect, which is the part applications get wrong. You
+already create one for the redirect flow — pass the challenge in and keep the verifier where
+you keep it now.
+
+**Every refusal reads the same.** A wrong password, an unknown address and a locked account
+are one message, because the server refuses to tell them apart — that is the enumeration
+oracle — and a UI that distinguishes them rebuilds it where a user can see. `sso_required`
+is the exception, and is named: telling somebody whose organization mandates SSO that their
+password is wrong sends them to support rather than to their identity provider.
+
+Pass `onTicket` to route the ticket yourself instead of navigating.
+
 ## Reading the environment's own theme (no backend)
 
 `<CboxIdProvider>` normally takes `user`, `urls` and `appearance` from your server. That is

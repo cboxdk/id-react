@@ -162,4 +162,21 @@ export const CSS = `
 .cbox-id-menu__itemsub { color: var(--cbox-id-muted); font-size: 0.78em; text-transform: capitalize; }
 .cbox-id-menu__check { margin-left: auto; color: var(--cbox-id-accent); flex: none; }
 .cbox-id-menu__item--active { background: var(--cbox-id-surface-hover); }
+
+.cbox-id-signin { display: flex; flex-direction: column; gap: 0.9em; max-width: 22em; }
+.cbox-id-signin__form { display: flex; flex-direction: column; gap: 0.45em; }
+.cbox-id-signin__label { font-size: 0.82em; color: var(--cbox-id-muted); }
+.cbox-id-signin__input {
+  font: inherit;
+  padding: 0.55em 0.7em;
+  border-radius: var(--cbox-id-radius);
+  border: 1px solid var(--cbox-id-border);
+  background: var(--cbox-id-surface);
+  color: inherit;
+}
+/* A visible focus ring, always. Removing outlines is the single most common way a form
+   becomes unusable by keyboard, and the accent is already the customer's colour. */
+.cbox-id-signin__input:focus-visible { outline: 2px solid var(--cbox-id-accent); outline-offset: 1px; }
+.cbox-id-signin__error { font-size: 0.85em; color: var(--cbox-id-danger, #b42318); margin: 0; }
+.cbox-id-signin__social { display: flex; flex-direction: column; gap: 0.4em; }
 `;
