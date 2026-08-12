@@ -11,12 +11,28 @@ export const CSS = `
   --cbox-id-accent-fg: #ffffff;
   --cbox-id-radius: 8px;
   --cbox-id-font: inherit;
-  --cbox-id-border: color-mix(in srgb, currentColor 14%, transparent);
+  /* 14% of anything is ~1.2:1 against the surface — the boundary that identifies a
+     password field, essentially invisible. SC 1.4.11 asks for 3:1, and 40% of the text
+     colour clears it in both themes. */
+  --cbox-id-border: color-mix(in srgb, currentColor 40%, transparent);
   --cbox-id-muted: color-mix(in srgb, currentColor 60%, transparent);
   --cbox-id-surface: Canvas;
+  /* Referenced by the error text, and previously definable nowhere: the single most
+     important string in the form was pinned to a red that fails contrast on a dark
+     surface. It now follows the theme like everything else. */
+  --cbox-id-danger: #b42318;
   --cbox-id-surface-hover: color-mix(in srgb, currentColor 8%, transparent);
   font-family: var(--cbox-id-font);
   display: inline-block;
+}
+/* Canvas follows the OS, so without this a host page with a dark design viewed on a
+   light OS gets white input backgrounds under the page's own light text — invisible
+   typing. Declaring the scheme makes the system colours agree with the surface. */
+@media (prefers-color-scheme: dark) {
+  .cbox-id-root {
+    color-scheme: dark;
+    --cbox-id-danger: #ff8a80;
+  }
 }
 .cbox-id-btn {
   font: inherit;
@@ -163,7 +179,10 @@ export const CSS = `
 .cbox-id-menu__check { margin-left: auto; color: var(--cbox-id-accent); flex: none; }
 .cbox-id-menu__item--active { background: var(--cbox-id-surface-hover); }
 
-.cbox-id-signin { display: flex; flex-direction: column; gap: 0.9em; max-width: 22em; }
+/* align-items:stretch is not decoration: .cbox-id-card centres its children, so
+   without this the form is its content width, the submit button is text-width and
+   centred, and each social button is a different size from its neighbour. */
+.cbox-id-signin { display: flex; flex-direction: column; align-items: stretch; gap: 0.9em; max-width: 22em; }
 .cbox-id-signin__form { display: flex; flex-direction: column; gap: 0.45em; }
 .cbox-id-signin__label { font-size: 0.82em; color: var(--cbox-id-muted); }
 .cbox-id-signin__input {
@@ -177,6 +196,9 @@ export const CSS = `
 /* A visible focus ring, always. Removing outlines is the single most common way a form
    becomes unusable by keyboard, and the accent is already the customer's colour. */
 .cbox-id-signin__input:focus-visible { outline: 2px solid var(--cbox-id-accent); outline-offset: 1px; }
-.cbox-id-signin__error { font-size: 0.85em; color: var(--cbox-id-danger, #b42318); margin: 0; }
+.cbox-id-signin__error { font-size: 0.85em; color: var(--cbox-id-danger); margin: 0; }
+.cbox-id-signin__input[aria-invalid='true'] { border-color: var(--cbox-id-danger); }
+.cbox-id-signin__pending { font-size: 0.82em; color: var(--cbox-id-muted); margin: 0; }
+.cbox-id-signin__link { font-size: 0.82em; color: inherit; }
 .cbox-id-signin__social { display: flex; flex-direction: column; gap: 0.4em; }
 `;

@@ -134,9 +134,50 @@ export function useCboxConfig(options: UseCboxConfigOptions): UseCboxConfigResul
  * mismatch would show up as a widget that ignores half of what you set. The light mode's
  * primary is the accent: widgets sit inside the host page's own theme, and a host that
  * renders dark already has its own dark surface under them.
+ *
+ * THE FOREGROUND IS DERIVED, NEVER DEFAULTED. It used to be left alone, so
+ * `--cbox-id-accent-fg` stayed white whatever the customer's primary was — and a brand
+ * whose primary is yellow, lime or pale cyan got white text on a light button as the
+ * submit control of its sign-in form. Nobody configures that on purpose, and the customer
+ * who does hit it sees it on the one screen they cannot afford to have broken.
  */
 function toWidgetAppearance(config: CboxFrontendConfig | null): CboxWidgetAppearance {
   const primary = config?.appearance?.light?.primary;
 
-  return primary ? { accent: primary } : {};
+  return primary ? { accent: primary, accentForeground: readableOn(primary) } : {};
+}
+
+/**
+ * Black or white, whichever the eye can actually read on that colour.
+ *
+ * Relative luminance per WCAG 2.x, with the sRGB transfer function applied — the naive
+ * `(r+g+b)/3` version gets greens and cyans wrong, which are exactly the brand colours
+ * this is for. Anything it cannot parse falls back to white, the previous behaviour.
+ */
+function readableOn(color: string): string {
+  const hex = color.trim().replace(/^#/, '');
+
+  const full =
+    hex.length === 3
+      ? hex
+          .split('')
+          .map((c) => c + c)
+          .join('')
+      : hex;
+
+  if (!/^[0-9a-fA-F]{6}$/.test(full)) {
+    return '#ffffff';
+  }
+
+  const channel = (pair: string): number => {
+    const v = parseInt(pair, 16) / 255;
+
+    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  };
+
+  const luminance =
+    0.2126 * channel(full.slice(0, 2)) + 0.7152 * channel(full.slice(2, 4)) + 0.0722 * channel(full.slice(4, 6));
+
+  // The crossover where contrast against black and against white are equal.
+  return luminance > 0.179 ? '#111111' : '#ffffff';
 }

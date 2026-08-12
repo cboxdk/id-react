@@ -1,7 +1,7 @@
 {
   "name": "@cboxdk/id-react",
   "version": "0.4.0",
-  "description": "Embeddable React widgets for Cbox ID \u2014 a drop-in user button, sign-in / sign-out buttons, profile card and organization badge, wired to your Cbox ID hosted flows. Themeable, accessible, zero-config.",
+  "description": "Embeddable React components for Cbox ID — a drop-in <SignIn/> form that draws itself in the customer's own colours, plus a user button, profile card, organization switcher and sign-in / sign-out buttons wired to your Cbox ID flows. Themeable, accessible, zero-config.",
   "type": "module",
   "license": "MIT",
   "author": "Sylvester Damgaard <sn@cbox.dk>",

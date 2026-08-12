@@ -36,6 +36,23 @@ It handles the password step, the second factor, and the social buttons the conf
 lists. Its last act is a redirect to `/oauth/authorize` carrying a single-use login ticket
 and your PKCE challenge.
 
+It brings its own stylesheet, so the example above renders a real form with no provider
+above it. To wear the environment's brand, pass the appearance `useCboxConfig()` derives:
+
+```tsx
+const { appearance } = useCboxConfig({ issuer, publishableKey })
+
+<SignIn frontend={frontend} authorize={…} appearance={appearance}
+        forgotPasswordUrl="/forgot" signUpUrl="/signup" />
+```
+
+**Before any of this works**, an operator has to turn the Frontend API on
+(`CBOX_ID_FRONTEND_API=true`) and mint a publishable key under **Developers → Frontend
+keys**, listing the exact origins allowed to use it. A key is useless from anywhere its
+owner did not name — that is what makes it safe to publish — and a refusal reaches the
+browser as a CORS-shaped network error with no readable body, by design. If your first
+call fails and devtools shows no response, check the allow-list before anything else.
+
 **It never touches a token.** Handing tokens to a page that proved a password is the
 implicit grant, which OAuth 2.1 removes. Tokens are minted by the authorize flow exactly as
 they were; only how the person arrived is different.

@@ -109,8 +109,10 @@ describe('SignIn', () => {
     render(<SignIn frontend={frontend} authorize={AUTHORIZE} />);
     await signInWith('ada@acme.test', 'pw');
 
-    fireEvent.change(await screen.findByLabelText(/email/i), { target: { value: '123456' } });
-    fireEvent.click(screen.getByRole('button', { name: /continue/i }));
+    // The CODE field, named exactly: at this step "email" also matches the label "Code
+    // from your email", and the address being verified is kept on the form now.
+    fireEvent.change(await screen.findByLabelText(/^code from your email$/i), { target: { value: '123456' } });
+    fireEvent.click(screen.getByRole('button', { name: /^continue$/i }));
 
     await waitFor(() => expect(submitSecondFactor).toHaveBeenCalledWith('mt_abc', '123456', 'otp'));
   });
@@ -157,5 +159,118 @@ describe('SignIn', () => {
 
     await waitFor(() => expect(onTicket).toHaveBeenCalledWith('lt_abc'));
     expect(assign).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * THE COMPONENT HAS TO WORK WITH NO PROVIDER ABOVE IT.
+ *
+ * It is the one thing in this package aimed at a page with no backend — the README's own
+ * example has no provider — and it used `cbox-id-*` classes while the stylesheet was
+ * injected only by `<CboxIdProvider>`. A customer following that example got browser
+ * default inputs and a browser default button for their sign-in page. Tests passed;
+ * nobody could see the form.
+ */
+describe('drawn, not just rendered', () => {
+  it('brings its own stylesheet', () => {
+    render(<SignIn frontend={clientWith({})} authorize={AUTHORIZE} />);
+
+    const styles = Array.from(document.querySelectorAll('style'));
+
+    expect(styles.some((s) => (s.textContent ?? '').includes('.cbox-id-signin'))).toBe(true);
+  });
+
+  it('wears the customer colours it was given', () => {
+    const { container } = render(
+      <SignIn frontend={clientWith({})} authorize={AUTHORIZE} appearance={{ accent: '#0ea5e9', accentForeground: '#111111' }} />,
+    );
+
+    const root = container.querySelector('.cbox-id-signin') as HTMLElement;
+
+    expect(root.style.getPropertyValue('--cbox-id-accent')).toBe('#0ea5e9');
+    expect(root.style.getPropertyValue('--cbox-id-accent-fg')).toBe('#111111');
+  });
+
+  /**
+   * Two on one page — or a host that already owns `cbox-id-email` — broke every
+   * `<label for>` association, which is the exact failure labels exist to prevent.
+   */
+  it('does not collide with a second instance on the same page', () => {
+    const { container } = render(
+      <>
+        <SignIn frontend={clientWith({})} authorize={AUTHORIZE} />
+        <SignIn frontend={clientWith({})} authorize={AUTHORIZE} />
+      </>,
+    );
+
+    const ids = Array.from(container.querySelectorAll('input[type="email"]')).map((i) => i.id);
+
+    expect(ids).toHaveLength(2);
+    expect(new Set(ids).size).toBe(2);
+  });
+});
+
+describe('usable by somebody who cannot see it', () => {
+  /**
+   * React keeps the identical node when the same message repeats, so nothing changes and
+   * no announcement fires: two wrong passwords in a row used to be announced once.
+   */
+  it('announces the same refusal twice when it happens twice', async () => {
+    const frontend = clientWith({ signIn: vi.fn().mockResolvedValue({ status: 'invalid' }) });
+
+    render(<SignIn frontend={frontend} authorize={AUTHORIZE} />);
+
+    await signInWith('ada@acme.test', 'wrong');
+    const first = await screen.findByRole('alert');
+
+    fireEvent.click(screen.getByRole('button', { name: /sign in/i }));
+
+    await waitFor(() => expect(screen.getByRole('alert')).not.toBe(first));
+  });
+
+  it('marks the fields invalid and points at the reason', async () => {
+    const frontend = clientWith({ signIn: vi.fn().mockResolvedValue({ status: 'invalid' }) });
+
+    render(<SignIn frontend={frontend} authorize={AUTHORIZE} />);
+    await signInWith('ada@acme.test', 'wrong');
+
+    const field = await screen.findByLabelText(/^email$/i);
+
+    await waitFor(() => expect(field).toHaveAttribute('aria-invalid', 'true'));
+    expect(field.getAttribute('aria-describedby')).toBe(screen.getByRole('alert').id);
+  });
+
+  /**
+   * A slow or lost code used to end the sign-in: no resend, no back, and reloading the
+   * page was the only escape.
+   */
+  it('offers a way back from the second factor', async () => {
+    const frontend = clientWith({
+      signIn: vi.fn().mockResolvedValue({ status: 'mfa_required', mfaToken: 'mt' }),
+    });
+
+    render(<SignIn frontend={frontend} authorize={AUTHORIZE} />);
+    await signInWith('ada@acme.test', 'pw');
+
+    fireEvent.click(await screen.findByRole('button', { name: /start again/i }));
+
+    expect(await screen.findByLabelText(/^password$/i)).toBeInTheDocument();
+  });
+
+  /**
+   * The old copy said "use the button above" — the social buttons render BELOW, and for an
+   * organization with a SAML connection and no social providers there is no button
+   * anywhere. A dead end on the one path the code went out of its way to name honestly.
+   */
+  it('does not point somebody mandated onto SSO at a button that is not there', async () => {
+    const frontend = clientWith({ signIn: vi.fn().mockResolvedValue({ status: 'sso_required' }) });
+
+    render(<SignIn frontend={frontend} authorize={AUTHORIZE} />);
+    await signInWith('ada@acme.test', 'pw');
+
+    const alert = await screen.findByRole('alert');
+
+    expect(alert.textContent).toMatch(/single sign-on/i);
+    expect(alert.textContent).not.toMatch(/above/i);
   });
 });

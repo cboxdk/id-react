@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react';
 
 import type { CboxFrontendConfig } from '../frontend.js';
+import { CSS, STYLE_ID } from '../styles.js';
+import type { CboxWidgetAppearance } from '../types.js';
 
 /**
  * A sign-in form you drop in, drawn in the customer's own colours.
@@ -38,6 +40,21 @@ export interface SignInProps {
   onTicket?: (loginTicket: string) => void;
   /** Rendered above the form. A logo, usually. */
   header?: ReactNode;
+  /**
+   * The customer's colours.
+   *
+   * Pass the `appearance` from `useCboxConfig()` and the form draws itself in the
+   * environment's own brand. Optional, because this component is the one thing in the
+   * package that has to work with no provider above it — a page with no backend is
+   * exactly who it is for.
+   */
+  appearance?: CboxWidgetAppearance;
+  /** Extra classes on the root, for a host that wants to place it. */
+  className?: string;
+  /** Where "Forgot your password?" goes. Omitted, no link is drawn. */
+  forgotPasswordUrl?: string;
+  /** Where "Create an account" goes. Omitted, no link is drawn. */
+  signUpUrl?: string;
 }
 
 export interface AuthorizeParams {
@@ -62,7 +79,27 @@ type SignInOutcome =
   | { status: 'invalid' }
   | { status: 'rate_limited'; retryAfter?: number };
 
-export function SignIn({ frontend, authorize, onTicket, header }: SignInProps) {
+export function SignIn({
+  frontend,
+  authorize,
+  onTicket,
+  header,
+  appearance = {},
+  className,
+  forgotPasswordUrl,
+  signUpUrl,
+}: SignInProps) {
+  // IDS THAT CANNOT COLLIDE. Two of these on one page — or a host that already owns
+  // `cbox-id-email` — broke every `<label for>` association, which is the exact failure
+  // labels exist to prevent. Both sibling components already do this.
+  const uid = useId();
+  const ids = {
+    email: `${uid}-email`,
+    password: `${uid}-password`,
+    code: `${uid}-code`,
+    error: `${uid}-error`,
+    status: `${uid}-status`,
+  };
   const [config, setConfig] = useState<CboxFrontendConfig | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -70,6 +107,15 @@ export function SignIn({ frontend, authorize, onTicket, header }: SignInProps) {
   const [pending, setPending] = useState<{ token: string; method: 'mfa' | 'otp' } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A counter, so the same message twice in a row is still announced: React keeps the
+  // identical node otherwise, nothing changes, and two wrong passwords produce one
+  // announcement.
+  const [errorSeq, setErrorSeq] = useState(0);
+
+  const refuse = useCallback((message: string) => {
+    setError(message);
+    setErrorSeq((n) => n + 1);
+  }, []);
 
   useEffect(() => {
     let live = true;
@@ -115,7 +161,7 @@ export function SignIn({ frontend, authorize, onTicket, header }: SignInProps) {
       }
 
       if (!endpoint) {
-        setError('Sign-in is unavailable right now. Please try again.');
+        refuse('Sign-in is unavailable right now. Please try again.');
 
         return;
       }
@@ -160,11 +206,15 @@ export function SignIn({ frontend, authorize, onTicket, header }: SignInProps) {
           // Named rather than folded into "wrong password": telling somebody whose
           // organization mandates SSO that their password is wrong sends them to support
           // instead of to their identity provider.
-          setError('Your organization signs in with single sign-on. Use the button above.');
+          // POINTED AT SOMETHING THAT EXISTS. It used to say "use the button above" while
+          // the social buttons render BELOW the form — and for an organization with a SAML
+          // connection and no social providers, there is no button anywhere. Naming the
+          // portal is the only instruction that is true in both cases.
+          refuse('Your organization signs in with single sign-on. Continue from your organization\'s sign-in page.');
 
           return;
         case 'rate_limited':
-          setError(
+          refuse(
             outcome.retryAfter
               ? `Too many attempts. Try again in ${outcome.retryAfter} seconds.`
               : 'Too many attempts. Try again shortly.',
@@ -172,10 +222,10 @@ export function SignIn({ frontend, authorize, onTicket, header }: SignInProps) {
 
           return;
         default:
-          setError('That email and password did not match.');
+          refuse('That email and password did not match.');
       }
     },
-    [spend],
+    [refuse, spend],
   );
 
   const submitPassword = async (event: FormEvent) => {
@@ -186,7 +236,7 @@ export function SignIn({ frontend, authorize, onTicket, header }: SignInProps) {
     try {
       handle(await frontend.signIn(email, password));
     } catch {
-      setError('We could not reach the sign-in service. Please try again.');
+      refuse('We could not reach the sign-in service. Please try again.');
     } finally {
       setBusy(false);
     }
@@ -207,81 +257,171 @@ export function SignIn({ frontend, authorize, onTicket, header }: SignInProps) {
 
       // A wrong code costs an attempt, not the sign-in — so the form stays on this step
       // rather than throwing the person back to the password field.
-      outcome.status === 'ok' ? handle(outcome) : setError('That code did not match.');
+      outcome.status === 'ok' ? handle(outcome) : refuse('That code did not match.');
     } catch {
-      setError('We could not reach the sign-in service. Please try again.');
+      refuse('We could not reach the sign-in service. Please try again.');
     } finally {
       setBusy(false);
     }
   };
 
+  const style: CSSProperties = {};
+
+  if (appearance.accent) {
+    (style as Record<string, string>)['--cbox-id-accent'] = appearance.accent;
+  }
+
+  if (appearance.accentForeground) {
+    (style as Record<string, string>)['--cbox-id-accent-fg'] = appearance.accentForeground;
+  }
+
+  if (appearance.radius) {
+    (style as Record<string, string>)['--cbox-id-radius'] = appearance.radius;
+  }
+
+  if (appearance.fontFamily) {
+    (style as Record<string, string>)['--cbox-id-font'] = appearance.fontFamily;
+  }
+
   return (
-    <div className="cbox-id-root cbox-id-card cbox-id-signin">
+    <div className={['cbox-id-root', 'cbox-id-card', 'cbox-id-signin', className].filter(Boolean).join(' ')} style={style}>
+      {/*
+        THE STYLESHEET, EMITTED HERE. Every other component in this package gets it from
+        `<CboxIdProvider>` — and this is the one that ships to a page with no backend and
+        no provider, which the README's own example demonstrates. Without it the customer
+        following that example gets browser-default inputs and a browser-default button
+        for their sign-in page. React hoists a keyed, precedenced <style> to <head> and
+        dedupes it, so rendering it twice beside a provider costs nothing.
+      */}
+      <style href={STYLE_ID} precedence="default">
+        {CSS}
+      </style>
+
       {header}
 
+      {/*
+        The pending state, announced. `disabled` on the focused button is what browsers
+        answer by dropping focus to <body>, so the button stays enabled and the handler
+        guards instead — otherwise the alert below fires while the caret sits at the top
+        of the page and the person has to tab all the way back.
+      */}
+      <p className="cbox-id-signin__pending" id={ids.status} role="status" aria-live="polite">
+        {busy ? 'Checking your details…' : ''}
+      </p>
+
       {pending ? (
-        <form onSubmit={submitCode} className="cbox-id-signin__form">
-          <label className="cbox-id-signin__label" htmlFor="cbox-id-code">
+        <form onSubmit={submitCode} className="cbox-id-signin__form" aria-busy={busy}>
+          <label className="cbox-id-signin__label" htmlFor={ids.code}>
             {pending.method === 'otp' ? 'Code from your email' : 'Code from your authenticator'}
           </label>
+          {/*
+            The address being verified stays on screen. It vanished at this step, so
+            somebody who mistyped it had no way to see that — and no way back.
+          */}
+          <input type="hidden" autoComplete="username" value={email} readOnly />
           <input
-            id="cbox-id-code"
+            id={ids.code}
             className="cbox-id-signin__input"
             value={code}
             onChange={(e) => setCode(e.target.value)}
-            // `one-time-code` is what lets a phone offer the code from a message, and
-            // `off` on autocorrect stops a keyboard helpfully mangling six digits.
+            // `one-time-code` is what lets a phone offer the code from a message.
+            // Autocorrect and autocapitalise are off because a recovery code is not a
+            // word, and iOS will helpfully make it one.
             autoComplete="one-time-code"
             inputMode="numeric"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            enterKeyHint="go"
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? ids.error : undefined}
             autoFocus
             required
           />
-          <button className="cbox-id-btn cbox-id-btn--primary" type="submit" disabled={busy}>
+          <button className="cbox-id-btn cbox-id-btn--primary" type="submit">
             {busy ? 'Checking…' : 'Continue'}
+          </button>
+          {/*
+            A WAY BACK. Without it a slow or lost code ends the sign-in: there is no
+            resend here, and the only escape was reloading the page.
+          */}
+          <button
+            className="cbox-id-btn"
+            type="button"
+            onClick={() => {
+              setPending(null);
+              setCode('');
+              setError(null);
+            }}
+          >
+            Start again
           </button>
         </form>
       ) : (
-        <form onSubmit={submitPassword} className="cbox-id-signin__form">
-          <label className="cbox-id-signin__label" htmlFor="cbox-id-email">
+        <form onSubmit={submitPassword} className="cbox-id-signin__form" aria-busy={busy}>
+          <label className="cbox-id-signin__label" htmlFor={ids.email}>
             Email
           </label>
           <input
-            id="cbox-id-email"
+            id={ids.email}
+            name="username"
             className="cbox-id-signin__input"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             autoComplete="username"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            enterKeyHint="next"
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? ids.error : undefined}
             required
           />
 
-          <label className="cbox-id-signin__label" htmlFor="cbox-id-password">
+          <label className="cbox-id-signin__label" htmlFor={ids.password}>
             Password
           </label>
           <input
-            id="cbox-id-password"
+            id={ids.password}
+            name="password"
             className="cbox-id-signin__input"
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="current-password"
+            enterKeyHint="go"
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? ids.error : undefined}
             required
           />
 
-          <button className="cbox-id-btn cbox-id-btn--primary" type="submit" disabled={busy}>
+          <button className="cbox-id-btn cbox-id-btn--primary" type="submit">
             {busy ? 'Signing in…' : 'Sign in'}
           </button>
+
+          {forgotPasswordUrl ? (
+            <a className="cbox-id-signin__link" href={forgotPasswordUrl}>
+              Forgot your password?
+            </a>
+          ) : null}
         </form>
       )}
 
       {/* Announced, not just coloured: a message a screen reader never reaches is a
-          message somebody using one cannot act on. */}
+          message somebody using one cannot act on. The key is what makes the SAME
+          message twice in a row announce twice. */}
       {error ? (
-        <p className="cbox-id-signin__error" role="alert">
+        <p className="cbox-id-signin__error" id={ids.error} key={errorSeq} role="alert">
           {error}
         </p>
       ) : null}
 
+      {/*
+        ABOVE nothing and below the form — but the sso_required message no longer points
+        at these, because for an organization with a SAML connection there is no button
+        here to point at.
+      */}
       {!pending && config?.social?.length ? (
         <div className="cbox-id-signin__social">
           {config.social.map((provider) => (
@@ -294,6 +434,12 @@ export function SignIn({ frontend, authorize, onTicket, header }: SignInProps) {
             </a>
           ))}
         </div>
+      ) : null}
+
+      {!pending && signUpUrl ? (
+        <a className="cbox-id-signin__link" href={signUpUrl}>
+          Create an account
+        </a>
       ) : null}
     </div>
   );
