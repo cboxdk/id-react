@@ -122,7 +122,12 @@ import { CboxIdProvider, UserButton } from '@cboxdk/id-react';
 export function AppShell({ user, children }) {
   return (
     <CboxIdProvider
-      user={user} // the CboxUser from @cboxdk/id-js, or null when signed out
+      // Pick the fields the widgets draw. A `CboxUser` from @cboxdk/id-js also carries
+      // `accessToken`, `refreshToken` and `idToken`, and this package is a client
+      // component — so on Next.js App Router the whole object would cross the RSC
+      // boundary and land in the HTML payload in plaintext. The provider narrows what it
+      // is given as a backstop; do it here too, where it is visible.
+      user={user && { id: user.id, email: user.email, name: user.name, organizationId: user.organizationId }}
       urls={{ signIn: '/auth/sign-in', signOut: '/auth/sign-out', profile: '/account' }}
     >
       <header>

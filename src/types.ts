@@ -1,7 +1,18 @@
 /**
  * The signed-in user a widget renders. Shape-compatible with the `CboxUser` from
- * `@cboxdk/id-js` — pass that straight through — but declared here so the widgets
- * have no runtime dependency on the client SDK.
+ * `@cboxdk/id-js`, and declared here so the widgets have no runtime dependency on the
+ * client SDK.
+ *
+ * PASSING A WHOLE `CboxUser` IS SAFE, BUT NOT BECAUSE OF THIS TYPE. `CboxUser` also
+ * carries `accessToken`, `refreshToken` and `idToken`, and TypeScript's excess-property
+ * check does not fire when the value is a variable rather than an object literal — so
+ * handing the whole thing over compiles clean. This package is `'use client'` throughout,
+ * so in a Next.js App Router app that prop crosses the RSC boundary and those credentials
+ * would land in the HTML flight payload in plaintext.
+ *
+ * {@link CboxIdProvider} therefore narrows whatever it is given to the fields below
+ * before anything else can see it. Prefer picking the fields yourself at the call site
+ * anyway — the narrowing is a backstop, not a licence to hand a token to a component.
  */
 export interface CboxWidgetUser {
   /** The stable subject (`sub`). */

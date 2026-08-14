@@ -25,8 +25,31 @@ export interface CboxIdProviderProps {
  * the flow URLs, and injects the (scoped, themeable) widget stylesheet once.
  */
 export function CboxIdProvider({ user = null, urls = {}, appearance = {}, children }: CboxIdProviderProps) {
+  // NARROWED TO WHAT A WIDGET DRAWS, and this is a security control rather than tidiness.
+  //
+  // `CboxWidgetUser` is documented as shape-compatible with id-js's `CboxUser` — "pass
+  // that straight through" — and `CboxUser` also carries `accessToken`, `refreshToken`,
+  // `idToken` and the full claim set. TypeScript's excess-property check does not fire on
+  // a variable, so passing the whole thing compiles clean, and this package is `'use
+  // client'` throughout: in a Next.js App Router app the prop crosses the RSC boundary,
+  // which puts those three credentials into the HTML flight payload in plaintext, readable
+  // by any script or extension on the page and cached by anything that caches HTML. The
+  // context value is also visible verbatim in React DevTools.
+  //
+  // So whatever is handed in, only these fields go into the context.
+  const safeUser = user
+    ? {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        organizationId: user.organizationId,
+        imageUrl: user.imageUrl,
+        organizations: user.organizations,
+      }
+    : null;
+
   return (
-    <CboxIdContext.Provider value={{ user, urls, appearance }}>
+    <CboxIdContext.Provider value={{ user: safeUser, urls, appearance }}>
       {/* React hoists a keyed, precedenced <style> to <head> and dedupes it. */}
       <style href={STYLE_ID} precedence="default">
         {CSS}

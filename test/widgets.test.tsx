@@ -9,6 +9,7 @@ import {
   SignInButton,
   UserButton,
   UserProfileCard,
+  useCboxId,
   type CboxWidgetUrls,
   type CboxWidgetUser,
 } from '../src/index.js';
@@ -181,5 +182,60 @@ describe('OrganizationSwitcher', () => {
     expect(screen.getByRole('menu')).toBeInTheDocument();
     await events.keyboard('{Escape}');
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+  });
+});
+
+describe('CboxIdProvider credential narrowing', () => {
+  /**
+   * A `CboxUser` from @cboxdk/id-js carries `accessToken`, `refreshToken` and `idToken`
+   * alongside the display fields, and TypeScript's excess-property check does not fire
+   * when the value is a variable — so `user={user}` compiles clean. This package is
+   * `'use client'` throughout, so on Next.js App Router that prop crosses the RSC
+   * boundary: the tokens would be serialized into the HTML flight payload in plaintext,
+   * readable by any script on the page and visible verbatim in React DevTools.
+   *
+   * The provider narrows whatever it is handed. This asserts on the CONTEXT VALUE rather
+   * than the rendered markup, because the widgets never drew the tokens anyway — the leak
+   * was in what was serialized, not in what was painted.
+   */
+  it('drops credentials from the context, however they arrive', () => {
+    const withTokens = {
+      id: 'user-1',
+      email: 'ada@acme.com',
+      name: 'Ada',
+      organizationId: 'org-1',
+      accessToken: 'at_secret',
+      refreshToken: 'rt_secret',
+      idToken: 'it_secret',
+      claims: { sub: 'user-1' },
+    } as unknown as CboxWidgetUser;
+
+    let seen: unknown;
+
+    function Probe() {
+      seen = useCboxId().user;
+      return null;
+    }
+
+    render(
+      <CboxIdProvider user={withTokens}>
+        <Probe />
+      </CboxIdProvider>,
+    );
+
+    expect(seen).toEqual({
+      id: 'user-1',
+      email: 'ada@acme.com',
+      name: 'Ada',
+      organizationId: 'org-1',
+      imageUrl: undefined,
+      organizations: undefined,
+    });
+
+    const serialized = JSON.stringify(seen);
+
+    expect(serialized).not.toContain('at_secret');
+    expect(serialized).not.toContain('rt_secret');
+    expect(serialized).not.toContain('it_secret');
   });
 });
