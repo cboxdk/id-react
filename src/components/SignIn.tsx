@@ -55,6 +55,32 @@ export interface SignInProps {
   forgotPasswordUrl?: string;
   /** Where "Create an account" goes. Omitted, no link is drawn. */
   signUpUrl?: string;
+  /**
+   * Told about every failure this component absorbs, for your own error reporting.
+   *
+   * The component still renders whatever the user needs to see; this is the developer's
+   * copy, with the original cause intact — a `FrontendApiError` from `@cboxdk/id-js`
+   * carries a `code`, so `origin_not_allowed` arrives here as itself rather than as the
+   * sentence a person is shown.
+   */
+  onError?: (cause: unknown) => void;
+}
+
+/**
+ * The `code` off a Frontend API error, if this is one.
+ *
+ * Read structurally rather than with `instanceof`, for the same reason `SignInClient` is
+ * a shape: this package does not depend on `@cboxdk/id-js`, and two copies of it in one
+ * bundle would fail an `instanceof` check that looks correct.
+ */
+function apiCode(cause: unknown): string | undefined {
+  if (typeof cause !== 'object' || cause === null || !('code' in cause)) {
+    return undefined;
+  }
+
+  const { code } = cause as { code: unknown };
+
+  return typeof code === 'string' ? code : undefined;
 }
 
 export interface AuthorizeParams {
@@ -88,6 +114,7 @@ export function SignIn({
   className,
   forgotPasswordUrl,
   signUpUrl,
+  onError,
 }: SignInProps) {
   // IDS THAT CANNOT COLLIDE. Two of these on one page — or a host that already owns
   // `cbox-id-email` — broke every `<label for>` association, which is the exact failure
@@ -112,10 +139,36 @@ export function SignIn({
   // announcement.
   const [errorSeq, setErrorSeq] = useState(0);
 
+  // Set only when the Frontend API has told us this page may never talk to it. Distinct
+  // from `error`, which is about the sign-in attempt: this one is about the integration,
+  // it does not clear when the user tries again, and it replaces the form rather than
+  // sitting under it — see the effect below.
+  const [setupError, setSetupError] = useState<string | null>(null);
+
   const refuse = useCallback((message: string) => {
     setError(message);
     setErrorSeq((n) => n + 1);
   }, []);
+
+  /**
+   * The developer's copy of a failure the user is being shown a sentence about.
+   *
+   * EVERY absorbed failure comes through here. Five `catch` blocks in this file used to
+   * discard the cause outright, so the single most common way to get this component
+   * wrong — a publishable key whose allow-list does not have this page's origin —
+   * produced a form that looked completely normal and said nothing anywhere. Not in the
+   * UI, not in the console, not to any reporter the host had wired.
+   *
+   * `console.error` unconditionally, because the person who hits this is at a dev server
+   * with the console open, and `onError` is a prop they have not heard of yet.
+   */
+  const report = useCallback(
+    (cause: unknown, context: string) => {
+      console.error(`[cbox-id] ${context}`, cause);
+      onError?.(cause);
+    },
+    [onError],
+  );
 
   useEffect(() => {
     let live = true;
@@ -123,14 +176,30 @@ export function SignIn({
     frontend
       .config()
       .then((doc) => live && setConfig(doc))
-      // A configuration that will not load is a form that cannot be themed or list its
-      // social buttons; it is still a form that can take a password, so this is not fatal.
-      .catch(() => undefined);
+      .catch((cause: unknown) => {
+        if (!live) {
+          return;
+        }
+
+        report(cause, 'could not read the Frontend API configuration');
+
+        // `origin_not_allowed` is not a bad moment, it is a permanent answer: every other
+        // call this component makes will get it too. Rendering the password form anyway
+        // meant the person typed their credentials, waited, and was told their email and
+        // password did not match — about a request that never reached authentication.
+        // Everything else (a 5xx, a dropped connection) is transient by assumption: the
+        // form stays, unthemed and without social buttons, and can still sign somebody in.
+        if (apiCode(cause) === 'origin_not_allowed') {
+          setSetupError(
+            'This page is not allowed to talk to Cbox ID. Add its origin to the publishable key\'s allow-list in the console.',
+          );
+        }
+      });
 
     return () => {
       live = false;
     };
-  }, [frontend]);
+  }, [frontend, report]);
 
   /**
    * Hand the completed sign-in to the authorize endpoint.
@@ -156,7 +225,12 @@ export function SignIn({
 
       try {
         endpoint = (await frontend.config()).endpoints?.authorization;
-      } catch {
+      } catch (cause) {
+        // The worst-timed failure in the component: authentication SUCCEEDED and a
+        // single-use ticket is in hand with about a minute to spend it. Whatever the
+        // reason is, it needs to reach the developer — the user is about to be told
+        // something true but useless.
+        report(cause, 'sign-in succeeded but the authorization endpoint could not be read');
         endpoint = undefined;
       }
 
@@ -179,7 +253,7 @@ export function SignIn({
 
       window.location.assign(`${endpoint}?${query.toString()}`);
     },
-    [authorize, frontend, onTicket],
+    [authorize, frontend, onTicket, refuse, report],
   );
 
   /**
@@ -228,15 +302,61 @@ export function SignIn({
     [refuse, spend],
   );
 
+  /**
+   * What a thrown failure says on screen.
+   *
+   * "We could not reach the sign-in service" was the answer to all four, and it is only
+   * true for one of them. A rate-limited person was told to try again, which is the exact
+   * thing that keeps them limited; a page whose origin is refused was told about the
+   * network. The codes come off `FrontendApiError` — see `apiCode`.
+   */
+  const refuseFor = useCallback(
+    (cause: unknown) => {
+      const retryAfter = (cause as { retryAfter?: unknown })?.retryAfter;
+
+      switch (apiCode(cause)) {
+        case 'rate_limited':
+          refuse(
+            typeof retryAfter === 'number'
+              ? `Too many attempts. Try again in ${retryAfter} seconds.`
+              : 'Too many attempts. Try again shortly.',
+          );
+
+          return;
+        case 'origin_not_allowed':
+          // Deliberately not the developer's sentence: the person in front of the screen
+          // cannot edit an allow-list, and telling them which control failed helps nobody.
+          // `report` has already put the real cause in the console.
+          refuse('Sign-in is unavailable on this page. Please contact support.');
+
+          return;
+        default:
+          refuse('We could not reach the sign-in service. Please try again.');
+      }
+    },
+    [refuse],
+  );
+
   const submitPassword = async (event: FormEvent) => {
     event.preventDefault();
+
+    // THE GUARD THE COMMENT BELOW ALREADY PROMISED. The submit button stays enabled while
+    // busy on purpose — disabling the focused control drops focus to <body> — and the
+    // handler was supposed to be what guards instead, except it did not. A second Enter
+    // during the request spent a second password attempt against the rate limiter, and
+    // whichever response landed last won.
+    if (busy) {
+      return;
+    }
+
     setBusy(true);
     setError(null);
 
     try {
       handle(await frontend.signIn(email, password));
-    } catch {
-      refuse('We could not reach the sign-in service. Please try again.');
+    } catch (cause) {
+      report(cause, 'the sign-in request failed');
+      refuseFor(cause);
     } finally {
       setBusy(false);
     }
@@ -245,7 +365,7 @@ export function SignIn({
   const submitCode = async (event: FormEvent) => {
     event.preventDefault();
 
-    if (!pending) {
+    if (!pending || busy) {
       return;
     }
 
@@ -258,8 +378,9 @@ export function SignIn({
       // A wrong code costs an attempt, not the sign-in — so the form stays on this step
       // rather than throwing the person back to the password field.
       outcome.status === 'ok' ? handle(outcome) : refuse('That code did not match.');
-    } catch {
-      refuse('We could not reach the sign-in service. Please try again.');
+    } catch (cause) {
+      report(cause, 'the second-factor request failed');
+      refuseFor(cause);
     } finally {
       setBusy(false);
     }
@@ -300,6 +421,22 @@ export function SignIn({
       {header}
 
       {/*
+        THE INTEGRATION IS BROKEN, SAID ON THE PAGE. Only for `origin_not_allowed`, which
+        is permanent: every request this form would make gets the same answer, so drawing
+        the password fields underneath would collect a credential in order to throw it
+        away. Every other config failure leaves the form standing.
+
+        role="alert" because it appears after the first render, once the failed request
+        comes back — a person using a screen reader is otherwise sitting on a page that
+        went quiet.
+      */}
+      {setupError ? (
+        <p className="cbox-id-signin__error" role="alert">
+          {setupError}
+        </p>
+      ) : null}
+
+      {/*
         The pending state, announced. `disabled` on the focused button is what browsers
         answer by dropping focus to <body>, so the button stays enabled and the handler
         guards instead — otherwise the alert below fires while the caret sits at the top
@@ -309,7 +446,7 @@ export function SignIn({
         {busy ? 'Checking your details…' : ''}
       </p>
 
-      {pending ? (
+      {setupError ? null : pending ? (
         <form onSubmit={submitCode} className="cbox-id-signin__form" aria-busy={busy}>
           <label className="cbox-id-signin__label" htmlFor={ids.code}>
             {pending.method === 'otp' ? 'Code from your email' : 'Code from your authenticator'}

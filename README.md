@@ -53,6 +53,17 @@ owner did not name — that is what makes it safe to publish — and a refusal r
 browser as a CORS-shaped network error with no readable body, by design. If your first
 call fails and devtools shows no response, check the allow-list before anything else.
 
+`<SignIn/>` now says this itself rather than leaving you to guess. An origin the key does
+not allow replaces the form with a message naming the allow-list — every request the form
+would make gets the same permanent refusal, so collecting a password in order to discard
+it helps nobody. Any other failure it absorbs (a 5xx, a dropped connection) leaves the
+form standing and goes to `console.error`. Pass `onError` to route the same causes into
+your own reporting; a `FrontendApiError` arrives with its `code` intact.
+
+```tsx
+<SignIn frontend={frontend} authorize={…} onError={(cause) => report(cause)} />
+```
+
 **It never touches a token.** Handing tokens to a page that proved a password is the
 implicit grant, which OAuth 2.1 removes. Tokens are minted by the authorize flow exactly as
 they were; only how the person arrived is different.

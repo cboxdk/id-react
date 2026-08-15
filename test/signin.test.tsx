@@ -274,3 +274,94 @@ describe('usable by somebody who cannot see it', () => {
     expect(alert.textContent).not.toMatch(/above/i);
   });
 });
+
+/**
+ * The failures the component used to absorb without a trace.
+ *
+ * Five `catch` blocks discarded their cause. The one that mattered is
+ * `origin_not_allowed` — a publishable key whose allow-list does not have this page's
+ * origin, which is the single most common way to get a first integration wrong, and the
+ * one the README warns about. It produced a form that looked entirely normal, said
+ * nothing in the UI, logged nothing to the console, and told the person their email and
+ * password did not match after they had typed both.
+ */
+describe('SignIn error fidelity', () => {
+  /** A `FrontendApiError` from @cboxdk/id-js, by shape — this package does not import it. */
+  function apiError(code: string, extra: Record<string, unknown> = {}) {
+    return Object.assign(new Error(`refused: ${code}`), { code, ...extra });
+  }
+
+  it('says the page is not allowed, instead of drawing a form that cannot work', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const frontend = clientWith({
+      config: vi.fn().mockRejectedValue(apiError('origin_not_allowed', { status: 403 })),
+    });
+
+    render(<SignIn frontend={frontend} authorize={AUTHORIZE} />);
+
+    expect((await screen.findByRole('alert')).textContent).toMatch(/allow-list/i);
+    // And no credential fields, because every request they would make gets the same
+    // permanent refusal: collecting a password here is collecting it in order to bin it.
+    expect(screen.queryByLabelText(/^password$/i)).toBeNull();
+  });
+
+  it('reports the cause to the console and to onError, with the code intact', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const onError = vi.fn();
+    const cause = apiError('origin_not_allowed', { status: 403 });
+
+    render(<SignIn frontend={clientWith({ config: vi.fn().mockRejectedValue(cause) })} authorize={AUTHORIZE} onError={onError} />);
+
+    await waitFor(() => expect(onError).toHaveBeenCalledWith(cause));
+    expect(logged).toHaveBeenCalled();
+  });
+
+  it('keeps the form when the configuration fails for a transient reason', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const frontend = clientWith({ config: vi.fn().mockRejectedValue(apiError('unavailable', { status: 503 })) });
+
+    render(<SignIn frontend={frontend} authorize={AUTHORIZE} />);
+
+    // A 5xx is a bad moment, not a permanent answer — the form must still be able to
+    // sign somebody in, unthemed and without its social buttons.
+    expect(await screen.findByLabelText(/^password$/i)).toBeInTheDocument();
+    expect(screen.queryByText(/allow-list/i)).toBeNull();
+  });
+
+  it('tells a rate-limited person to wait rather than to try again', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const frontend = clientWith({
+      signIn: vi.fn().mockRejectedValue(apiError('rate_limited', { retryAfter: 30 })),
+    });
+
+    render(<SignIn frontend={frontend} authorize={AUTHORIZE} />);
+    await signInWith('ada@acme.test', 'pw');
+
+    const alert = await screen.findByRole('alert');
+
+    // "Please try again" is the instruction that keeps them limited.
+    expect(alert.textContent).toMatch(/30 seconds/);
+    expect(alert.textContent).not.toMatch(/could not reach/i);
+  });
+
+  it('does not spend a second password attempt on a double submit', async () => {
+    const signIn = vi.fn(
+      () => new Promise((resolve) => setTimeout(() => resolve({ status: 'invalid' }), 20)),
+    );
+
+    render(<SignIn frontend={clientWith({ signIn: signIn as never })} authorize={AUTHORIZE} />);
+
+    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'ada@acme.test' } });
+    fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'pw' } });
+
+    // The button stays enabled while busy on purpose — disabling the focused control
+    // drops focus to <body>. The handler is what has to guard, and it did not.
+    const button = screen.getByRole('button', { name: /sign in/i });
+    fireEvent.click(button);
+    fireEvent.click(button);
+    fireEvent.click(button);
+
+    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
+    expect(signIn).toHaveBeenCalledTimes(1);
+  });
+});

@@ -84,4 +84,38 @@ describe('useCboxConfig', () => {
     const init = fetchImpl.mock.calls[0]?.[1] as RequestInit & { headers: Record<string, string> };
     expect(init.headers['X-Cbox-Publishable-Key']).toBe('pk_live_abc');
   });
+  /**
+   * The option's own doc comment says "injectable for tests and non-browser runtimes",
+   * and the natural way to honour that is an inline arrow. That is a new function
+   * identity on every render — and it was in the effect's dependency array, so the effect
+   * re-ran, set state, rendered, and re-ran. An unbounded request loop against the
+   * Frontend API, caused by using the option as documented.
+   */
+  it('does not re-request when fetch is passed inline on every render', async () => {
+    const calls = vi.fn();
+
+    function InlineProbe() {
+      const { loading } = useCboxConfig({
+        issuer: 'https://id.acme.test',
+        publishableKey: 'pk_live_abc',
+        // A fresh closure per render, exactly as a caller following the docs writes it.
+        fetch: ((...args: unknown[]) => {
+          calls(...args);
+
+          return Promise.resolve(respond(CONFIG));
+        }) as unknown as typeof fetch,
+      });
+
+      return <span data-testid="loading">{String(loading)}</span>;
+    }
+
+    render(<InlineProbe />);
+
+    await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('false'));
+
+    // Settle: a loop shows up as a count that keeps climbing after the first render.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(calls.mock.calls.length).toBeLessThanOrEqual(2); // StrictMode double-mount
+  });
 });

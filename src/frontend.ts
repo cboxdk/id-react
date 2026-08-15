@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import type { CboxWidgetAppearance } from './types.js';
 
@@ -81,11 +81,20 @@ export function useCboxConfig(options: UseCboxConfigOptions): UseCboxConfigResul
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
+  // HELD IN A REF, AND OUT OF THE DEPENDENCY ARRAY. `fetch` is documented as injectable
+  // for tests, so the natural way to pass one is an inline arrow — which is a new value
+  // on every render, which re-ran this effect, which set state, which rendered again.
+  // An infinite request loop against the Frontend API, triggered by using the option the
+  // way its own doc comment describes. The identity of the function never needs to
+  // re-run the effect; only the issuer and the key do.
+  const fetchRef = useRef(fetchImpl);
+  fetchRef.current = fetchImpl;
+
   useEffect(() => {
     // Guards a React 18 StrictMode double-mount and any unmount mid-flight: setting
     // state on a component that is gone is a warning nobody can act on.
     let live = true;
-    const doFetch = fetchImpl ?? globalThis.fetch.bind(globalThis);
+    const doFetch = fetchRef.current ?? globalThis.fetch.bind(globalThis);
 
     setLoading(true);
     setError(null);
@@ -121,7 +130,7 @@ export function useCboxConfig(options: UseCboxConfigOptions): UseCboxConfigResul
     return () => {
       live = false;
     };
-  }, [issuer, publishableKey, fetchImpl]);
+  }, [issuer, publishableKey]);
 
   return { config, appearance: toWidgetAppearance(config), loading, error };
 }
