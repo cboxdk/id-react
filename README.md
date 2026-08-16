@@ -13,6 +13,14 @@ on the server; these widgets render the signed-in user it produces.
 Everything else here is a redirect shell. `<SignIn/>` draws the form, in the customer's own
 colours, against the Frontend API:
 
+> **It needs a server that implements the sign-in half.** `useCboxConfig()` and
+> `<UserButton/>` read `/frontend/v1/config` and `/session`, which the `cboxdk/laravel-id`
+> package serves itself. `<SignIn/>` posts to `/frontend/v1/sign-in*`, which is sign-in
+> policy and lives in the application — [Cbox ID](https://github.com/cboxdk/cbox-id)
+> implements it, a bare `laravel-id` install answers 404. From a browser that looks exactly
+> like a dead network, so it arrives as "we could not reach the sign-in service" rather
+> than as a missing route.
+
 ```tsx
 import { CboxIdFrontend } from '@cboxdk/id-js'
 import { SignIn } from '@cboxdk/id-react'
