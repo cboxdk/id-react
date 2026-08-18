@@ -24,9 +24,9 @@ function respond(body: unknown, status = 200) {
   });
 }
 
-function Probe({ fetchImpl }: { fetchImpl: typeof fetch }) {
+function Probe({ fetchImpl, issuer = 'https://id.acme.test' }: { fetchImpl: typeof fetch; issuer?: string }) {
   const { appearance, loading, error } = useCboxConfig({
-    issuer: 'https://id.acme.test',
+    issuer,
     publishableKey: 'pk_live_abc',
     fetch: fetchImpl,
   });
@@ -117,5 +117,33 @@ describe('useCboxConfig', () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
 
     expect(calls.mock.calls.length).toBeLessThanOrEqual(2); // StrictMode double-mount
+  });
+});
+
+/**
+ * This channel carries login tickets, one-time codes and the session the user is in the
+ * middle of establishing. Over http a network attacker on the same Wi-Fi reads the ticket
+ * and redeems it — while serving the sign-in box the user is looking at, so nothing on the
+ * page gives it away.
+ */
+describe('the issuer it will send a publishable key to', () => {
+  it('refuses to fetch over http, and says why', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(respond(CONFIG)) as unknown as typeof fetch;
+
+    render(<Probe fetchImpl={fetchImpl} issuer="http://id.acme.test" />);
+
+    await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('false'));
+    expect(screen.getByTestId('error').textContent).toContain('must be https');
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('allows loopback over http, for local development', async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(respond(CONFIG)) as unknown as typeof fetch;
+
+    render(<Probe fetchImpl={fetchImpl} issuer="http://localhost:8000" />);
+
+    await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('false'));
+    expect(screen.getByTestId('error').textContent).toBe('none');
+    expect(fetchImpl).toHaveBeenCalled();
   });
 });

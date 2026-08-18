@@ -99,6 +99,20 @@ export function useCboxConfig(options: UseCboxConfigOptions): UseCboxConfigResul
     setLoading(true);
     setError(null);
 
+    // This channel carries login tickets, one-time codes and the session the user is in
+    // the middle of establishing. Over `http` a network attacker on the same Wi-Fi reads
+    // the ticket and redeems it — while serving the sign-in box the user is looking at,
+    // so nothing on the page gives it away. Reported as an error rather than thrown: a
+    // hook that throws during an effect unmounts the tree, and a misconfigured issuer
+    // should show the developer a message, not a blank page. Loopback stays allowed for
+    // local development (RFC 8252 makes it the native-app callback by definition).
+    if (!isSecureIssuer(issuer)) {
+      setLoading(false);
+      setError(new Error(`Cbox ID issuer must be https (got ${issuer}).`));
+
+      return;
+    }
+
     doFetch(`${issuer.replace(/\/$/, '')}/frontend/v1/config`, {
       headers: {
         'X-Cbox-Publishable-Key': publishableKey,
@@ -189,4 +203,29 @@ function readableOn(color: string): string {
 
   // The crossover where contrast against black and against white are equal.
   return luminance > 0.179 ? '#111111' : '#ffffff';
+}
+
+/**
+ * Whether an issuer URL is safe to send a publishable key and a login ticket to.
+ *
+ * Loopback over http is allowed: a development instance runs there, and RFC 8252 makes
+ * loopback the native-app callback by definition.
+ */
+function isSecureIssuer(issuer: string): boolean {
+  let url: URL;
+
+  try {
+    url = new URL(issuer);
+  } catch {
+    return false;
+  }
+
+  if (url.protocol === 'https:') {
+    return true;
+  }
+
+  const loopback =
+    url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '[::1]';
+
+  return url.protocol === 'http:' && loopback;
 }
