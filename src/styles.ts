@@ -138,6 +138,9 @@ export const CSS = `
   font-size: 0.82em;
 }
 .cbox-id-anchor { position: relative; display: inline-block; }
+/* The organization switcher usually sits at the START of a header, where a menu aligned to
+   the trigger's right edge opens off the left of the page. It opens from its left edge. */
+.cbox-id-anchor--start .cbox-id-menu { left: 0; right: auto; }
 .cbox-id-orgswitch {
   font: inherit;
   /* Also drawn as a link (to the hosted picker), which would otherwise be underlined. */

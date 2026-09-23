@@ -96,7 +96,7 @@ export function OrganizationSwitcher({
 
   return (
     <span className={`cbox-id-root ${className ?? ''}`} style={appearanceStyle(appearance)}>
-      <span className="cbox-id-anchor" ref={anchorRef}>
+      <span className="cbox-id-anchor cbox-id-anchor--start" ref={anchorRef}>
         <button
           type="button"
           className="cbox-id-orgswitch"

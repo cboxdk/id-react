@@ -166,6 +166,17 @@ describe('OrganizationSwitcher with organization selection', () => {
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 
+  it('opens its menu from its left edge, where a header puts it', async () => {
+    // Right-aligned like the user menu, it opened off the left of the page. jsdom-style
+    // environments do no layout, so this pins the rule's hook; the rendered check is the
+    // real test.
+    const events = userEvent.setup();
+    wrap(<OrganizationSwitcher />, { user: member, urls });
+
+    await events.click(screen.getByRole('button', { name: /Current organization/ }));
+    expect(screen.getByRole('menu').parentElement).toHaveClass('cbox-id-anchor--start');
+  });
+
   it('renders nothing without a list or a picker route', () => {
     const { container } = wrap(<OrganizationSwitcher />, {
       user: { id: 'u', organizationId: 'org-acme' },
