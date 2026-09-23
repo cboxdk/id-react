@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { appearanceStyle, initialsOf, useCboxId } from '../context.js';
+import { useOrganization } from '../organization.js';
 import type { CboxWidgetOrganization } from '../types.js';
 
 export interface OrganizationSwitcherProps {
@@ -7,6 +8,10 @@ export interface OrganizationSwitcherProps {
   label?: string;
   /** Label for the create-organization footer (shown when `urls.createOrganization` is set). */
   createLabel?: string;
+  /** Label for the hosted-picker footer (shown when `urls.selectOrganization` is set). */
+  selectLabel?: string;
+  /** Trigger text when the session is bound to no organization yet. */
+  placeholder?: string;
   className?: string;
 }
 
@@ -21,17 +26,24 @@ function OrgAvatar({ org }: { org: CboxWidgetOrganization }) {
 
 /**
  * The drop-in organization control: the active organization, opening a menu of the
- * user's organizations with a one-click switch. Switching is a redirect that starts
- * a new sign-in carrying the chosen `organization_id` (via `urls.switchOrganization`);
- * without that URL the list is read-only. Renders nothing when the user belongs to no
- * organization. Keyboard- and screen-reader-accessible; closes on outside click or Escape.
+ * user's organizations with a one-click switch. Switching is a redirect that starts a new
+ * sign-in bound to the chosen organization (`organization=<id>`, via
+ * `urls.switchOrganization`); without that URL the list is read-only.
+ *
+ * The list is `user.organizations`, which Cbox ID only sends when the sign-in requested
+ * the `organizations` scope. Without it, and with `urls.selectOrganization` set, the
+ * control is a single link to the hosted picker; with neither, it renders nothing.
+ * Keyboard- and screen-reader-accessible; closes on outside click or Escape.
  */
 export function OrganizationSwitcher({
   label = 'Organizations',
   createLabel = 'Create organization',
+  selectLabel = 'All organizations',
+  placeholder = 'Select organization',
   className,
 }: OrganizationSwitcherProps) {
   const { user, urls, appearance } = useCboxId();
+  const { organization: active, organizations: orgs, switchUrl } = useOrganization();
   const [open, setOpen] = useState(false);
   const anchorRef = useRef<HTMLSpanElement>(null);
   const menuId = useId();
@@ -58,12 +70,29 @@ export function OrganizationSwitcher({
     };
   }, [open]);
 
-  const orgs = user?.organizations ?? [];
-  if (!user || orgs.length === 0) {
+  if (!user) {
     return null;
   }
 
-  const active = orgs.find((o) => o.id === user.organizationId) ?? orgs[0]!;
+  if (orgs.length === 0) {
+    // No list to draw — the sign-in did not ask for the `organizations` scope. The hosted
+    // picker still knows every membership, so link to it rather than render nothing.
+    if (!urls.selectOrganization) {
+      return null;
+    }
+    return (
+      <span className={`cbox-id-root ${className ?? ''}`} style={appearanceStyle(appearance)}>
+        <a
+          className="cbox-id-orgswitch"
+          href={urls.selectOrganization}
+          aria-label={active ? `Current organization: ${active.name}. Switch organization` : placeholder}
+        >
+          {active ? <OrgAvatar org={active} /> : null}
+          <span className="cbox-id-orgswitch__name">{active ? active.name : placeholder}</span>
+        </a>
+      </span>
+    );
+  }
 
   return (
     <span className={`cbox-id-root ${className ?? ''}`} style={appearanceStyle(appearance)}>
@@ -74,11 +103,13 @@ export function OrganizationSwitcher({
           aria-haspopup="menu"
           aria-expanded={open}
           aria-controls={open ? menuId : undefined}
-          aria-label={`Current organization: ${active.name}. Switch organization`}
+          // Not the first organization in the list when the session is bound to none:
+          // naming one as current would show its name over data it does not own.
+          aria-label={active ? `Current organization: ${active.name}. Switch organization` : placeholder}
           onClick={() => setOpen((value) => !value)}
         >
-          <OrgAvatar org={active} />
-          <span className="cbox-id-orgswitch__name">{active.name}</span>
+          {active ? <OrgAvatar org={active} /> : null}
+          <span className="cbox-id-orgswitch__name">{active ? active.name : placeholder}</span>
           <svg className="cbox-id-orgswitch__chev" width="14" height="14" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
             <path d="M4 6l4 4 4-4" />
           </svg>
@@ -88,8 +119,8 @@ export function OrganizationSwitcher({
           <div className="cbox-id-menu" role="menu" id={menuId} aria-label={label}>
             <div className="cbox-id-menu__grouplabel">{label}</div>
             {orgs.map((org) => {
-              const isActive = org.id === active.id;
-              const href = !isActive ? urls.switchOrganization?.(org.id) : undefined;
+              const isActive = org.id === active?.id;
+              const href = switchUrl(org.id);
               const inner = (
                 <>
                   <OrgAvatar org={org} />
@@ -121,9 +152,16 @@ export function OrganizationSwitcher({
               );
             })}
 
+            {urls.selectOrganization || urls.createOrganization ? <hr className="cbox-id-menu__sep" /> : null}
+
+            {urls.selectOrganization ? (
+              <a className="cbox-id-menu__item" role="menuitem" href={urls.selectOrganization}>
+                <span className="cbox-id-menu__name">{selectLabel}</span>
+              </a>
+            ) : null}
+
             {urls.createOrganization ? (
               <>
-                <hr className="cbox-id-menu__sep" />
                 <a className="cbox-id-menu__item" role="menuitem" href={urls.createOrganization}>
                   <span className="cbox-id-avatar cbox-id-avatar--org cbox-id-avatar--ghost" aria-hidden="true">+</span>
                   <span className="cbox-id-menu__name">{createLabel}</span>
