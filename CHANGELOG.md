@@ -3,7 +3,7 @@
 All notable changes to `@cboxdk/id-react` are recorded here. Earlier releases are described
 in their [GitHub releases](https://github.com/cboxdk/id-react/releases).
 
-## Unreleased
+## [0.7.0] - 2026-09-24
 
 Organization selection and support sessions. **Requires `@cboxdk/id-js` 0.17 or later**
 on your server, which sends the `organization` parameter and fills the `organization`,
