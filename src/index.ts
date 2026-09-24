@@ -21,9 +21,21 @@ export {
   OrganizationSwitcher,
   type OrganizationSwitcherProps,
 } from './components/OrganizationSwitcher.js';
+export {
+  SupportSessionBanner,
+  type SupportSessionBannerProps,
+} from './components/SupportSessionBanner.js';
+export {
+  useOrganization,
+  useSupportSession,
+  type UseOrganizationResult,
+  type UseSupportSessionResult,
+} from './organization.js';
 export type {
   CboxWidgetUser,
   CboxWidgetOrganization,
+  CboxWidgetActiveOrganization,
+  CboxWidgetActor,
   CboxWidgetUrls,
   CboxWidgetAppearance,
 } from './types.js';

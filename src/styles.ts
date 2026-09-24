@@ -22,9 +22,11 @@ export const CSS = `
      surface. It now follows the theme like everything else. */
   --cbox-id-danger: #b42318;
   --cbox-id-surface-hover: color-mix(in srgb, currentColor 8%, transparent);
+  --cbox-id-warning: #b54708;
   font-family: var(--cbox-id-font);
   display: inline-block;
 }
+.cbox-id-root--block { display: block; }
 /* Canvas follows the OS, so without this a host page with a dark design viewed on a
    light OS gets white input backgrounds under the page's own light text — invisible
    typing. Declaring the scheme makes the system colours agree with the surface. */
@@ -32,6 +34,7 @@ export const CSS = `
   .cbox-id-root {
     color-scheme: dark;
     --cbox-id-danger: #ff8a80;
+    --cbox-id-warning: #fdb022;
   }
 }
 .cbox-id-btn {
@@ -135,8 +138,13 @@ export const CSS = `
   font-size: 0.82em;
 }
 .cbox-id-anchor { position: relative; display: inline-block; }
+/* The organization switcher usually sits at the START of a header, where a menu aligned to
+   the trigger's right edge opens off the left of the page. It opens from its left edge. */
+.cbox-id-anchor--start .cbox-id-menu { left: 0; right: auto; }
 .cbox-id-orgswitch {
   font: inherit;
+  /* Also drawn as a link (to the hosted picker), which would otherwise be underlined. */
+  text-decoration: none;
   display: inline-flex;
   align-items: center;
   gap: 0.5em;
@@ -201,4 +209,26 @@ export const CSS = `
 .cbox-id-signin__pending { font-size: 0.82em; color: var(--cbox-id-muted); margin: 0; }
 .cbox-id-signin__link { font-size: 0.82em; color: inherit; }
 .cbox-id-signin__social { display: flex; flex-direction: column; gap: 0.4em; }
+
+/* A support session is the one state where the person at the keyboard is not the account
+   holder. It uses the warning tone, never the accent: the accent is the customer's brand
+   colour, and a banner in it reads as their own chrome rather than as a caution. */
+.cbox-id-support {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5em 1em;
+  padding: 0.6em 0.9em;
+  border: 1px solid var(--cbox-id-warning);
+  border-radius: var(--cbox-id-radius);
+  /* Over transparent, not over --cbox-id-surface: Canvas follows the OS, so on a light
+     page viewed on a dark OS a surface-based tint came out near-black under the page's
+     own dark text. A tint of the host's own background reads in both. */
+  background: color-mix(in srgb, var(--cbox-id-warning) 14%, transparent);
+  font-size: 0.9em;
+}
+.cbox-id-support__text { flex: 1 1 20em; }
+.cbox-id-support__end { color: inherit; font-weight: 600; white-space: nowrap; }
+.cbox-id-support__end:focus-visible { outline: 2px solid var(--cbox-id-warning); outline-offset: 2px; }
 `;

@@ -21,14 +21,44 @@ export interface CboxWidgetUser {
   name?: string | null;
   /** The active organization's id (the one the current session is scoped to). */
   organizationId?: string | null;
+  /**
+   * The organization the session is bound to, with its name and the person's membership
+   * tier there (`org`, `org_name`, `org_role`). Produced by `@cboxdk/id-js` 0.17 or later
+   * as `CboxUser.organization`; pass it through and `useOrganization()` reports the role.
+   */
+  organization?: CboxWidgetActiveOrganization | null;
+  /**
+   * Set when a member of staff is signed in as this person — a support session (the
+   * RFC 8693 `act` claim). Produced by `@cboxdk/id-js` 0.17 or later as
+   * `CboxUser.actor`; pass it through and `<SupportSessionBanner>` shows itself.
+   */
+  actor?: CboxWidgetActor | null;
   /** Optional avatar image URL; falls back to initials when absent. */
   imageUrl?: string | null;
   /**
-   * The organizations this user belongs to — powers `<OrganizationSwitcher>`. Inject
-   * it from the server (the redirect flow doesn't expose it client-side); omit for a
-   * single-org app and the switcher renders nothing.
+   * The organizations this user belongs to — powers `<OrganizationSwitcher>`. It is
+   * `CboxUser.organizations` from `@cboxdk/id-js`, which Cbox ID only fills when the
+   * sign-in requested the `organizations` scope. Inject it from the server; omit it and
+   * the switcher lists nothing (it can still link to the hosted picker, see
+   * `urls.selectOrganization`).
    */
   organizations?: CboxWidgetOrganization[];
+}
+
+/** The organization a session is bound to. Shape-compatible with id-js's `CboxActiveOrganization`. */
+export interface CboxWidgetActiveOrganization {
+  id: string;
+  name?: string | null;
+  /** The membership tier: `owner`, `admin`, `developer`, `member` or `viewer`. */
+  role?: string | null;
+}
+
+/**
+ * Who is driving a support session. Shape-compatible with id-js's `CboxActor`. `sub` is
+ * null when the token was acted but the actor could not be read — still a support session.
+ */
+export interface CboxWidgetActor {
+  sub: string | null;
 }
 
 /** One organization a user belongs to, as rendered by `<OrganizationSwitcher>`. */
@@ -64,13 +94,24 @@ export interface CboxWidgetUrls {
    */
   addAccount?: string;
   /**
-   * Given an organization id, return a route in *your* app that starts a sign-in
-   * carrying that `organization_id` — e.g. a handler calling the client's
-   * `createAuthorizationRequest({ organizationId })`. Powers the switcher's items;
-   * when omitted, `<OrganizationSwitcher>` lists organizations read-only.
+   * Given an organization id, return a route in *your* app that starts a sign-in bound
+   * to that organization — a handler calling id-js's `switchOrganization(id)` (or
+   * `createAuthorizationRequest({ organization: id })`), which sends `organization=<id>`.
+   * Powers the switcher's items and `useOrganization().switchOrganization`; when
+   * omitted, `<OrganizationSwitcher>` lists organizations read-only.
    */
   switchOrganization?: (organizationId: string) => string;
-  /** Optional route to create a new organization (shown as the switcher's footer). */
+  /**
+   * Route that starts a `prompt=select_organization` sign-in — Cbox ID's hosted
+   * organization picker. Shown at the foot of the switcher, and used on its own when the
+   * sign-in did not request the `organizations` scope and there is no list to draw.
+   */
+  selectOrganization?: string;
+  /**
+   * Route that starts a `prompt=create_organization` sign-in — the hosted "create a team"
+   * step; the person becomes its owner and comes back bound to it. Shown as the
+   * switcher's footer. Any route of your own works too.
+   */
   createOrganization?: string;
 }
 

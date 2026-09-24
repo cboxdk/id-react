@@ -1,8 +1,9 @@
 # @cboxdk/id-react
 
 Embeddable React widgets for [Cbox ID](https://github.com/cboxdk/laravel-id) — a
-drop-in **user button**, sign-in / sign-out buttons, a profile card and an
-organization badge, wired to your Cbox ID hosted flows. Themeable, accessible, and
+drop-in **user button**, sign-in / sign-out buttons, a profile card, an
+organization badge and switcher, and a support-session banner, wired to your Cbox ID
+hosted flows. Themeable, accessible, and
 zero-config (the stylesheet is injected for you).
 
 Pairs with [`@cboxdk/id-js`](https://github.com/cboxdk/id-js), which runs the login
@@ -172,32 +173,121 @@ click or Escape.
 | `<UserProfileCard>` | Avatar, name, email, and a manage-account link. |
 | `<OrganizationBadge>` | The user's current organization. |
 | `<OrganizationSwitcher>` | The active organization + a menu to switch between the user's orgs. |
+| `<SupportSessionBanner>` | A banner shown only while a member of staff is signed in as the user. |
 
-Hooks: `useCboxUser()` and `useCboxId()`.
+Hooks: `useCboxUser()`, `useCboxId()`, `useOrganization()` and `useSupportSession()`.
 
 ### Organization switcher
 
-Provide the user's organizations and a `switchOrganization` URL builder — switching is
-a redirect that starts a new sign-in carrying the chosen `organization_id`:
+> **Requires `@cboxdk/id-js` 0.17 or later** on your server, and a Cbox ID instance that
+> supports organization selection (laravel-id 1.19). id-js 0.17 is what sends the
+> `organization` parameter and fills `organization`, `organizations` and `actor` on the
+> user. It is declared as an optional peer dependency (`^0.17.0`): these widgets never
+> import it, but the fields they draw come from it.
+
+Switching organization is a new sign-in bound to the other organization. Give the switcher
+a route in your app that starts one, and the list of the person's organizations:
 
 ```tsx
 <CboxIdProvider
-  user={{ ...user, organizations: [
-    { id: 'org_a', name: 'Acme', role: 'admin' },
-    { id: 'org_b', name: 'Globex', role: 'member' },
-  ] }}
+  user={user && {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    organizationId: user.organizationId,
+    organization: user.organization,   // { id, name, role } — the tier comes from org_role
+    organizations: user.organizations, // needs the `organizations` scope, see below
+    actor: user.actor,                 // set in a support session
+  }}
   urls={{
-    // A route in your app that calls cboxId.createAuthorizationRequest({ organizationId })
-    switchOrganization: (id) => `/auth/switch-org?org=${id}`,
-    createOrganization: '/organizations/new', // optional footer
+    signOut: '/auth/sign-out',
+    switchOrganization: (id) => `/auth/switch-organization?org=${encodeURIComponent(id)}`,
+    selectOrganization: '/auth/select-organization', // optional: the hosted picker
+    createOrganization: '/auth/create-organization', // optional: the hosted "create a team" step
   }}
 >
   <OrganizationSwitcher />
 </CboxIdProvider>
 ```
 
-Inject `organizations` from the server (the redirect flow doesn't expose the list
-client-side). Omit it — or leave the user in one org — and the switcher renders nothing.
+The three routes are one-liners with the id-js Next.js adapter:
+
+```ts
+// app/auth/switch-organization/route.ts
+import { NextResponse, type NextRequest } from 'next/server';
+import { cboxId } from '@/lib/cbox';
+
+export async function GET(request: NextRequest) {
+  const org = request.nextUrl.searchParams.get('org');
+  if (!org) return NextResponse.redirect(new URL('/', request.url));
+  return cboxId.switchOrganization(org); // sends organization=<id>
+}
+
+// app/auth/select-organization/route.ts
+export const GET = () => cboxId.signIn({ prompt: 'select_organization' });
+
+// app/auth/create-organization/route.ts
+export const GET = () => cboxId.signIn({ prompt: 'create_organization' });
+```
+
+Cbox ID holds the person's session, so a switch normally comes straight back without a
+sign-in form. The callback verifies the tokens are for the organization asked for, and a
+person who is not an active member of it comes back with `error=access_denied` — see the
+id-js README.
+
+**Where the list comes from.** `user.organizations` is filled from UserInfo only when the
+sign-in requested the `organizations` scope — it discloses every organization the person is
+in, so a plain `profile` sign-in does not get it:
+
+```ts
+export const cboxId = createCboxId({ scopes: ['openid', 'profile', 'email', 'organizations'] });
+```
+
+Without the list, the switcher is a single link to `urls.selectOrganization` (the hosted
+picker still knows every membership); without that too, it renders nothing. A session bound
+to no organization reads "Select organization" rather than naming the first one in the list
+as current.
+
+### `useOrganization()`
+
+The headless half of the switcher, for building your own:
+
+```tsx
+const { organization, role, organizations, canSwitch, switchOrganization } = useOrganization();
+
+organization; // { id, name, role, imageUrl? } | null — the organization the session is bound to
+role;         // 'owner' | 'admin' | 'developer' | 'member' | 'viewer' | null (org_role)
+switchOrganization('org_2x…'); // navigates to urls.switchOrganization(id)
+```
+
+`role` is the person's tier in the **organization** — who may invite, bill or delete it.
+What they may do in your app is `roles` / `permissions`, which your server reads from the
+token.
+
+### Support sessions
+
+A member of staff can be signed in as one of your users for a limited time, with a recorded
+reason — the tokens carry the RFC 8693 `act` claim, which id-js exposes as `user.actor`.
+Put the banner at the top of your layout; it renders nothing in an ordinary session:
+
+```tsx
+<SupportSessionBanner />
+// → "Support session. You are signed in as Ada Lovelace. Everything you do here is audited."
+//   plus an "End support session" link to urls.signOut
+```
+
+Pass `className` to drop the built-in styling (the element then carries only your class),
+and a function child to word it yourself:
+
+```tsx
+<SupportSessionBanner className="my-banner">
+  {({ actor, user }) => `Acting as ${user?.email} (agent ${actor?.sub ?? 'unknown'})`}
+</SupportSessionBanner>
+```
+
+`useSupportSession()` returns the same `{ active, actor, user }` for hiding what a helper
+should never do on somebody's behalf. Both are fail-closed: an `act` claim id-js could not
+read (`actor.sub === null`) still counts as a support session.
 
 ## Theming
 

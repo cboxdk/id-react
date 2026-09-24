@@ -45,6 +45,12 @@ export function CboxIdProvider({ user = null, urls = {}, appearance = {}, childr
         organizationId: user.organizationId,
         imageUrl: user.imageUrl,
         organizations: user.organizations,
+        organization: user.organization
+          ? { id: user.organization.id, name: user.organization.name, role: user.organization.role }
+          : user.organization,
+        // Only the actor's subject: an id-js `CboxActor` also chains prior actors, which no
+        // widget draws. Present-but-unreadable stays present — it is still a support session.
+        actor: user.actor ? { sub: typeof user.actor.sub === 'string' ? user.actor.sub : null } : user.actor,
       }
     : null;
 
