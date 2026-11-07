@@ -4,7 +4,7 @@ All notable changes to `@cboxdk/id-react` are recorded here. Earlier releases ar
 in their [GitHub releases](https://github.com/cboxdk/id-react/releases).
 
 
-## [0.7.1] — prepared candidate, not published
+## [0.7.1] - 2026-11-07
 
 ### Changes
 
