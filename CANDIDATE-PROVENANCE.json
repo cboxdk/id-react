@@ -1,0 +1,9 @@
+{
+  "upstream_head": "d9aee8312eca723618d7ca728cef5b07d4bfc2e5",
+  "upstream_branch": "main",
+  "target_version": "0.7.1",
+  "status": "unpublished candidate based on actual upstream history",
+  "source_manifest": "evidence/id-react-final-source-hashes.json",
+  "publication_parent": "b899df58099cfb0fdbfb60d1cb2c175328dbaaa0",
+  "restored_public_files": []
+}
